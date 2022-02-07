@@ -1,7 +1,10 @@
 use std::env;
 use std::path::Path;
+use std::fs::File;
 
 mod proc;
+mod elf;
+use elf::elfdefs::*;
 
 fn help() {
     println!("usage: ./injector [-n NAME][-p PID] SHARED_LIB");
@@ -76,4 +79,21 @@ fn main() {
     println!("PID: {}", pid);
     println!("Name: {}", name);
     println!("Filename: {}", fname);
+
+    let libfile = File::open(libpath).expect("Unable to open library file");
+    if let Ok(ehdr) = elf::read_ehdr(&libfile) {
+        match ehdr {
+            ElfW::Elf32(hdr) => {
+                println!("Magic: {}", String::from_utf8_lossy(&hdr.e_ident[0..SELFMAG]));
+                println!("Header: {:?}", hdr);
+            }
+            
+            ElfW::Elf64(hdr) => {
+                println!("Magic: {}", String::from_utf8_lossy(&hdr.e_ident[0..SELFMAG]));
+                println!("Header: {:?}", hdr);
+            }
+        }
+    } else {
+        println!("Unable to read ELF header");
+    }
 }
