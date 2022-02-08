@@ -69,10 +69,11 @@ fn main() {
         }
     }
     
-    if fname == "" {
-        if let Some(option) = proc::exepath_from_pid(pid) {
-            fname = option;
-        }
+    /* The 'filename' entered by the user does not need to be a full path,
+     * therefore it will be always retrieved (to have the full path)
+     */
+    if let Some(option) = proc::exepath_from_pid(pid) {
+        fname = option;
     }
 
     println!("Libpath: {}", libpath);
@@ -82,17 +83,9 @@ fn main() {
 
     let libfile = File::open(libpath).expect("Unable to open library file");
     if let Ok(ehdr) = elf::read_ehdr(&libfile) {
-        match ehdr {
-            ElfW::Elf32(hdr) => {
-                println!("Magic: {}", String::from_utf8_lossy(&hdr.e_ident[0..SELFMAG]));
-                println!("Header: {:?}", hdr);
-            }
-            
-            ElfW::Elf64(hdr) => {
-                println!("Magic: {}", String::from_utf8_lossy(&hdr.e_ident[0..SELFMAG]));
-                println!("Header: {:?}", hdr);
-            }
-        }
+        println!("Class: {}", ehdr.get_class());
+        println!("Magic: {}", String::from_utf8_lossy(ehdr.get_magic().as_slice()));
+        println!("Header: {:?}", ehdr);
     } else {
         println!("Unable to read ELF header");
     }

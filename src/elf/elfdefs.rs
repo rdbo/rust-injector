@@ -28,10 +28,6 @@ pub type Elf64_Section = u16;
 
 pub const EI_NIDENT : usize = 16;
 
-pub trait ElfW_Ehdr {
-    fn new() -> Self;
-}
-
 #[derive(Debug)]
 #[repr(C)]
 pub struct Elf32_Ehdr {
@@ -51,27 +47,6 @@ pub struct Elf32_Ehdr {
     pub e_shstrndx : Elf32_Half
 }
 
-impl ElfW_Ehdr for Elf32_Ehdr {
-    fn new() -> Self {
-        return Elf32_Ehdr {
-            e_ident: [0; EI_NIDENT],
-            e_type: 0,
-            e_machine: 0,
-            e_version: 0,
-            e_entry: 0,
-            e_phoff: 0,
-            e_shoff: 0,
-            e_flags: 0,
-            e_ehsize: 0,
-            e_phentsize: 0,
-            e_phnum: 0,
-            e_shentsize: 0,
-            e_shnum: 0,
-            e_shstrndx: 0
-        };
-    }
-}
-
 #[derive(Debug)]
 #[repr(C)]
 pub struct Elf64_Ehdr {
@@ -89,27 +64,6 @@ pub struct Elf64_Ehdr {
     pub e_shentsize : Elf64_Half,
     pub e_shnum : Elf64_Half,
     pub e_shstrndx : Elf64_Half
-}
-
-impl Elf64_Ehdr {
-    pub fn new() -> Self {
-        return Elf64_Ehdr {
-            e_ident: [0; EI_NIDENT],
-            e_type: 0,
-            e_machine: 0,
-            e_version: 0,
-            e_entry: 0,
-            e_phoff: 0,
-            e_shoff: 0,
-            e_flags: 0,
-            e_ehsize: 0,
-            e_phentsize: 0,
-            e_phnum: 0,
-            e_shentsize: 0,
-            e_shnum: 0,
-            e_shstrndx: 0
-        };
-    }
 }
 
 pub const EI_MAG0 : usize = 0;
@@ -133,7 +87,91 @@ pub const ELFCLASS32 : u8 = 1;
 pub const ELFCLASS64 : u8 = 2;
 pub const ELFCLASSNUM : u8 = 3;
 
+/********************/
+
+pub trait ElfW_Ehdr {
+    fn get_class(&self) -> u8;
+    fn get_magic(&self) -> Vec<u8>;
+}
+
+impl Elf32_Ehdr {
+    pub fn new() -> Self {
+        return Elf32_Ehdr {
+            e_ident: [0; EI_NIDENT],
+            e_type: 0,
+            e_machine: 0,
+            e_version: 0,
+            e_entry: 0,
+            e_phoff: 0,
+            e_shoff: 0,
+            e_flags: 0,
+            e_ehsize: 0,
+            e_phentsize: 0,
+            e_phnum: 0,
+            e_shentsize: 0,
+            e_shnum: 0,
+            e_shstrndx: 0
+        };
+    }
+}
+
+impl ElfW_Ehdr for Elf32_Ehdr {
+    fn get_class(&self) -> u8 {
+        return self.e_ident[EI_CLASS];
+    }
+
+    fn get_magic(&self) -> Vec<u8> {
+        return Vec::from(&self.e_ident[0..SELFMAG]);
+    }
+}
+
+impl Elf64_Ehdr {
+    fn new() -> Self {
+        return Elf64_Ehdr {
+            e_ident: [0; EI_NIDENT],
+            e_type: 0,
+            e_machine: 0,
+            e_version: 0,
+            e_entry: 0,
+            e_phoff: 0,
+            e_shoff: 0,
+            e_flags: 0,
+            e_ehsize: 0,
+            e_phentsize: 0,
+            e_phnum: 0,
+            e_shentsize: 0,
+            e_shnum: 0,
+            e_shstrndx: 0
+        };
+    }
+}
+
+impl ElfW_Ehdr for Elf64_Ehdr {
+    fn get_class(&self) -> u8 {
+        return self.e_ident[EI_CLASS];
+    }
+
+    fn get_magic(&self) -> Vec<u8> {
+        return Vec::from(&self.e_ident[0..SELFMAG]);
+    }
+}
+
+#[derive(Debug)]
 pub enum ElfW<A, B> {
     Elf32(A),
     Elf64(B)
+}
+
+extern crate lib;
+use lib::elfw;
+
+impl<A, B> ElfW_Ehdr for ElfW<A, B>
+where A : ElfW_Ehdr, B : ElfW_Ehdr {
+    fn get_class(&self) -> u8 {
+        return elfw!(e.get_class());
+    }
+
+    fn get_magic(&self) -> Vec<u8> {
+        return elfw!(e.get_magic());
+    }
 }
