@@ -125,7 +125,7 @@ fn main() {
     );
 
     match injector::inject(pid, &libpath) {
-        Some(_) => println!("Injected successfully!"),
-        None => println!("Unable to inject")
+        Ok(_) => println!("Injected successfully!"),
+        Err(e) => panic!("Unable to inject: {}", e)
     }
 }

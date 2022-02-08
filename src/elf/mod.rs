@@ -5,6 +5,12 @@ use std::mem::{size_of, transmute};
 pub mod elfdefs;
 use elfdefs::*;
 
+macro_rules! separator2 {
+    () => {
+        println!("\t--------------------");
+    }
+}
+
 pub fn read_ehdr(file : &File) -> Result<ElfW<Elf32_Ehdr, Elf64_Ehdr>, &'static str> {
     let mut magic : [u8;SELFMAG] = [0;SELFMAG];
     match file.read_exact_at(&mut magic, 0) {
@@ -47,4 +53,29 @@ pub fn read_ehdr(file : &File) -> Result<ElfW<Elf32_Ehdr, Elf64_Ehdr>, &'static 
     } else {
         return Err("Invalid ELF class");
     }
+}
+
+pub fn enum_symbols<F>(file : &File, mut callback : F) -> Result<(), &'static str>
+where F : FnMut(String, usize) {
+    let ehdr = match read_ehdr(file) {
+        Ok(hdr) => hdr,
+        Err(e) => return Err(e)
+    };
+
+    println!("ELF Section: ");
+    let result = ehdr.enum_sections(file, |name : String, offset : u64, entsize : u64, size : u64| -> bool {
+        println!("\tName: {}", name);
+        println!("\tOffset: {:#x}", offset);
+        println!("\tEntsize: {:#x}", entsize);
+        println!("\tSize: {:#x}", size);
+        separator2!();
+        return true;
+    });
+
+    match result {
+        None => return Err("Could not enumerate ELF sections"),
+        Some(_) => {  }
+    }
+
+    return Ok(());
 }

@@ -87,11 +87,70 @@ pub const ELFCLASS32 : u8 = 1;
 pub const ELFCLASS64 : u8 = 2;
 pub const ELFCLASSNUM : u8 = 3;
 
+#[derive(Debug)]
+#[repr(C)]
+struct Elf32_Shdr {
+    sh_name : Elf32_Word,
+    sh_type : Elf32_Word,
+    sh_flags : Elf32_Word,
+    sh_addr : Elf32_Addr,
+    sh_offset : Elf32_Off,
+    sh_size : Elf32_Word,
+    sh_link : Elf32_Word,
+    sh_info : Elf32_Word,
+    sh_addralign : Elf32_Word,
+    sh_entsize : Elf32_Word
+}
+
+#[derive(Debug)]
+#[repr(C)]
+struct Elf64_Shdr {
+    sh_name : Elf64_Word,
+    sh_type : Elf64_Word,
+    sh_flags : Elf64_Xword,
+    sh_addr : Elf64_Addr,
+    sh_offset : Elf64_Off,
+    sh_size : Elf64_Xword,
+    sh_link : Elf64_Word,
+    sh_info : Elf64_Word,
+    sh_addralign : Elf64_Xword,
+    sh_entsize : Elf64_Xword,
+}
+
 /********************/
 
-pub trait ElfW_Ehdr {
-    fn get_class(&self) -> u8;
-    fn get_magic(&self) -> Vec<u8>;
+impl Elf32_Shdr {
+    pub fn new() -> Self {
+        return Elf32_Shdr {
+            sh_name: 0,
+            sh_type: 0,
+            sh_flags: 0,
+            sh_addr: 0,
+            sh_offset: 0,
+            sh_size: 0,
+            sh_link: 0,
+            sh_info: 0,
+            sh_addralign: 0,
+            sh_entsize: 0
+        }
+    }
+}
+
+impl Elf64_Shdr {
+    pub fn new() -> Self {
+        return Elf64_Shdr {
+            sh_name: 0,
+            sh_type: 0,
+            sh_flags: 0,
+            sh_addr: 0,
+            sh_offset: 0,
+            sh_size: 0,
+            sh_link: 0,
+            sh_info: 0,
+            sh_addralign: 0,
+            sh_entsize: 0
+        }
+    }
 }
 
 impl Elf32_Ehdr {
@@ -112,16 +171,6 @@ impl Elf32_Ehdr {
             e_shnum: 0,
             e_shstrndx: 0
         };
-    }
-}
-
-impl ElfW_Ehdr for Elf32_Ehdr {
-    fn get_class(&self) -> u8 {
-        return self.e_ident[EI_CLASS];
-    }
-
-    fn get_magic(&self) -> Vec<u8> {
-        return Vec::from(&self.e_ident[0..SELFMAG]);
     }
 }
 
@@ -146,6 +195,59 @@ impl Elf64_Ehdr {
     }
 }
 
+use std::mem::{size_of, transmute};
+use std::os::unix::fs::FileExt;
+use std::fs::File;
+use std::io::{Seek, SeekFrom, BufRead, BufReader};
+
+pub trait ElfW_Ehdr {
+    fn get_class(&self) -> u8;
+    fn get_magic(&self) -> Vec<u8>;
+    fn enum_sections<T>(&self, file : &File, callback : T) -> Option<()> where T : FnMut(String, u64, u64, u64) -> bool;
+}
+
+impl ElfW_Ehdr for Elf32_Ehdr {
+    fn get_class(&self) -> u8 {
+        return self.e_ident[EI_CLASS];
+    }
+
+    fn get_magic(&self) -> Vec<u8> {
+        return Vec::from(&self.e_ident[0..SELFMAG]);
+    }
+
+    fn enum_sections<T>(&self, file : &File, mut callback : T) -> Option<()> where T : FnMut(String, u64, u64, u64) -> bool {
+        // Get shstrtab
+        let mut shstrtab_off = self.e_shoff + (self.e_shstrndx * self.e_shentsize) as Elf32_Off;
+        let mut shbuf : [u8;size_of::<Elf32_Shdr>()] = [0;size_of::<Elf32_Shdr>()];
+        file.read_exact_at(&mut shbuf, shstrtab_off as u64).ok()?;
+        let shstrtab = unsafe {
+            transmute::<[u8;size_of::<Elf32_Shdr>()], Elf32_Shdr>(shbuf)
+        };
+
+        shstrtab_off = shstrtab.sh_offset;
+        println!("ELF shstrtab offset: {:#x}", shstrtab_off);
+
+        // Loop through sections
+        for i in 0..self.e_shnum {
+            file.read_exact_at(&mut shbuf, (self.e_shoff + (i * self.e_shentsize) as Elf32_Off) as u64).ok()?;
+            let shdr = unsafe {
+                transmute::<[u8;size_of::<Elf32_Shdr>()], Elf32_Shdr>(shbuf)
+            };
+
+            let mut section_name_buf : Vec<u8> = vec![];
+            let mut reader = BufReader::new(file);
+            reader.seek(SeekFrom::Start((shstrtab_off + shdr.sh_name) as u64));
+            reader.read_until(b'\x00', &mut section_name_buf);
+
+            let section_name = String::from_utf8_lossy(&section_name_buf).to_string();
+            if !callback(section_name, shdr.sh_offset as u64, shdr.sh_entsize as u64, shdr.sh_size as u64) {
+                break;
+            }
+        }
+        return Some(());
+    }
+}
+
 impl ElfW_Ehdr for Elf64_Ehdr {
     fn get_class(&self) -> u8 {
         return self.e_ident[EI_CLASS];
@@ -153,6 +255,10 @@ impl ElfW_Ehdr for Elf64_Ehdr {
 
     fn get_magic(&self) -> Vec<u8> {
         return Vec::from(&self.e_ident[0..SELFMAG]);
+    }
+
+    fn enum_sections<T>(&self, file : &File, mut callback : T) -> Option<()> where T : FnMut(String, u64, u64, u64) -> bool {
+        return None;
     }
 }
 
@@ -173,5 +279,9 @@ where A : ElfW_Ehdr, B : ElfW_Ehdr {
 
     fn get_magic(&self) -> Vec<u8> {
         return elfw!(e.get_magic());
+    }
+
+    fn enum_sections<T>(&self, file : &File, mut callback : T) -> Option<()> where T : FnMut(String, u64, u64, u64) -> bool {
+        return elfw!(e.enum_sections(file, callback));
     }
 }
