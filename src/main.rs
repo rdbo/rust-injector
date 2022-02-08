@@ -1,10 +1,10 @@
 use std::env;
 use std::path::Path;
 use std::fs::File;
-use nix::sys::mman::ProtFlags;
 
 mod proc;
 mod elf;
+mod injector;
 use elf::elfdefs::*;
 use nix::unistd::geteuid;
 
@@ -88,14 +88,14 @@ fn main() {
         panic!("Unable to retrieve process executable path!");
     }
 
-    println!("Process info: ");
-    println!("\tLibpath: {}", libpath);
-    println!("\tPID: {}", pid);
-    println!("\tName: {}", name);
-    println!("\tFilename: {}", fname);
+    println!("General info: ");
+    println!("\tLibrary path: {}", libpath);
+    println!("\tProcess ID: {}", pid);
+    println!("\tProcess Name: {}", name);
+    println!("\tProcess Filename: {}", fname);
     separator!();
 
-    let libfile = File::open(libpath).expect("Unable to open library file");
+    let libfile = File::open(&libpath).expect("Unable to open library file");
     let lib_ehdr = match elf::read_ehdr(&libfile) {
         Ok(ehdr) => ehdr,
         Err(e) => panic!("Unable to read library ELF file: {}", e)
@@ -124,8 +124,8 @@ fn main() {
         "The ELF classes from the library and the process don't match. Make sure they are the same architecture!"
     );
 
-    proc::enum_maps(pid, |base : usize, end : usize, flags : ProtFlags, path : String| {
-        println!("Base: {}, End: {}, Flags: {:?}, Path: {}", base, end, flags, path);
-        return true;
-    });
+    match injector::inject(pid, &libpath) {
+        Some(_) => println!("Injected successfully!"),
+        None => println!("Unable to inject")
+    }
 }

@@ -4,6 +4,14 @@ use std::io::{BufRead, BufReader};
 use regex::Regex;
 use nix::sys::mman::ProtFlags;
 
+#[derive(Debug)]
+pub struct MapsEntry {
+    pub base : usize,
+    pub end : usize,
+    pub flags : ProtFlags,
+    pub path : String
+}
+
 pub fn enum_pids<F>(mut callback : F) -> Option<()> where F : FnMut(i32) -> bool {
     let procfs = Path::new("/proc");
     let dir = read_dir(procfs).ok()?;
@@ -38,7 +46,7 @@ pub fn enum_pids<F>(mut callback : F) -> Option<()> where F : FnMut(i32) -> bool
 }
 
 pub fn enum_maps<F>(pid : i32, mut callback : F) -> Option<()>
-where F : FnMut(usize, usize, ProtFlags, String) -> bool {
+where F : FnMut(MapsEntry) -> bool {
     let maps_file = File::open(format!("/proc/{}/maps", pid)).ok()?;
     let reader = BufReader::new(maps_file);
     let re = Regex::new(r"([0-9a-f]+)-([0-9a-f]+)\s+([rwxp\-]+).*\s+(/.*)").ok()?;
@@ -62,8 +70,9 @@ where F : FnMut(usize, usize, ProtFlags, String) -> bool {
             }
         }
         let path = String::from(&caps[4]);
+        let entry = MapsEntry{ base: base_addr, end: end_addr, flags: flags, path: path };
 
-        if !callback(base_addr, end_addr, flags, path) {
+        if !callback(entry) {
             break;
         }
     }
