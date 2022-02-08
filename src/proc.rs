@@ -82,10 +82,11 @@ pub fn exepath_from_pid(pid : i32) -> Option<String> {
 
 pub fn pid_from_fname(fname : &String) -> Option<i32> {
     let mut pid = None;
+    let fname = format!("/{}", fname);
     
     enum_pids(|curpid : i32| {
         if let Some(curpath) = exepath_from_pid(curpid) {
-            if curpath.ends_with(fname) {
+            if curpath.ends_with(&fname) {
                 pid = Some(curpid);
                 return false;
             }

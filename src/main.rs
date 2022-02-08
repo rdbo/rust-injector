@@ -6,11 +6,19 @@ mod proc;
 mod elf;
 use elf::elfdefs::*;
 
+macro_rules! separator {
+    () => {
+        println!("====================");
+    }
+}
+
 fn help() {
     println!("usage: ./injector [-n NAME][-p PID] SHARED_LIB");
 }
 
 fn main() {
+    println!("[ Rust Injector ] by rdbo");
+    separator!();
     let mut args : Vec<String> = env::args().collect();
     args = args[1..].to_vec(); // remove first argument (program)
     if args.len() != 3 {
@@ -44,21 +52,18 @@ fn main() {
     }
 
     let lib_exists = Path::new(&libpath).is_file();
-    if !lib_exists {
-        println!("The library '{}' does not exist", libpath);
-        return;
-    }
+    assert!(lib_exists, "The library \"{}\" does not exist", libpath);
 
     if pid <= 0 {
         if name != "" {
             pid = match proc::pid_from_name(&name) {
                 Some(p) => p,
-                _ => { println!("Unable to get PID from name '{}'", name); return; }
+                _ => panic!("Unable to get PID from name '{}'", name)
             }
         } else {
             pid = match proc::pid_from_fname(&fname) {
                 Some(p) => p,
-                _ => { println!("Unable to get PID from filename '{}'", fname); return; }
+                _ => panic!("Unable to get PID from filename '{}'", fname)
             }
         }
     }
@@ -74,19 +79,43 @@ fn main() {
      */
     if let Some(option) = proc::exepath_from_pid(pid) {
         fname = option;
+    } else {
+        panic!("Unable to retrieve process executable path!");
     }
 
-    println!("Libpath: {}", libpath);
-    println!("PID: {}", pid);
-    println!("Name: {}", name);
-    println!("Filename: {}", fname);
+    println!("Process info: ");
+    println!("\tLibpath: {}", libpath);
+    println!("\tPID: {}", pid);
+    println!("\tName: {}", name);
+    println!("\tFilename: {}", fname);
+    separator!();
 
     let libfile = File::open(libpath).expect("Unable to open library file");
-    if let Ok(ehdr) = elf::read_ehdr(&libfile) {
-        println!("Class: {}", ehdr.get_class());
-        println!("Magic: {}", String::from_utf8_lossy(ehdr.get_magic().as_slice()));
-        println!("Header: {:?}", ehdr);
-    } else {
-        println!("Unable to read ELF header");
-    }
+    let lib_ehdr = match elf::read_ehdr(&libfile) {
+        Ok(ehdr) => ehdr,
+        Err(e) => panic!("Unable to read library ELF file: {}", e)
+    };
+
+    println!("Library ELF info: ");
+    println!("\tClass: {}", lib_ehdr.get_class());
+    println!("\tMagic: {}", String::from_utf8_lossy(lib_ehdr.get_magic().as_slice()));
+    println!("\tHeader: {:?}", lib_ehdr);
+    separator!();
+
+    let exefile = File::open(fname).expect("Unable to open process executable file");
+    let exe_ehdr = match elf::read_ehdr(&exefile) {
+        Ok(ehdr) => ehdr,
+        Err(e) => panic!("Unable to read process ELF file: {}", e)
+    };
+
+    println!("Process ELF info: ");
+    println!("\tClass: {}", exe_ehdr.get_class());
+    println!("\tMagic: {}", String::from_utf8_lossy(exe_ehdr.get_magic().as_slice()));
+    println!("\tHeader: {:?}", exe_ehdr);
+    separator!();
+
+    assert!(
+        lib_ehdr.get_class() == exe_ehdr.get_class(),
+        "The ELF classes from the library and the process don't match. Make sure they are the same architecture!"
+    );
 }
