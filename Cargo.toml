@@ -10,3 +10,5 @@ name = "lib"
 proc-macro = true
 
 [dependencies]
+nix = "0.23.1"
+regex = "1.5.4"

@@ -5,6 +5,7 @@ use std::fs::File;
 mod proc;
 mod elf;
 use elf::elfdefs::*;
+use nix::unistd::geteuid;
 
 macro_rules! separator {
     () => {
@@ -19,6 +20,9 @@ fn help() {
 fn main() {
     println!("[ Rust Injector ] by rdbo");
     separator!();
+
+    assert!(geteuid().is_root(), "Please run as root");
+
     let mut args : Vec<String> = env::args().collect();
     args = args[1..].to_vec(); // remove first argument (program)
     if args.len() != 3 {

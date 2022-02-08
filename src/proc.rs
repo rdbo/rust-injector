@@ -35,6 +35,11 @@ pub fn enum_pids<F>(mut callback : F) -> Option<()> where F : FnMut(i32) -> bool
     return Some(());
 }
 
+pub fn enum_maps<F>(pid : i32, mut callback : F) -> Option<()>
+where F : FnMut(usize, usize, i32, String) -> bool {
+    return Some(());
+}
+
 pub fn name_from_pid(pid : i32) -> Option<String> {
     let mut name = None;
     let status_path = format!("/proc/{}/status", pid);
