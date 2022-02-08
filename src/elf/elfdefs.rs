@@ -258,7 +258,35 @@ impl ElfW_Ehdr for Elf64_Ehdr {
     }
 
     fn enum_sections<T>(&self, file : &File, mut callback : T) -> Option<()> where T : FnMut(String, u64, u64, u64) -> bool {
-        return None;
+        // Get shstrtab
+        let mut shstrtab_off = self.e_shoff + (self.e_shstrndx * self.e_shentsize) as Elf64_Off;
+        let mut shbuf : [u8;size_of::<Elf64_Shdr>()] = [0;size_of::<Elf64_Shdr>()];
+        file.read_exact_at(&mut shbuf, shstrtab_off as u64).ok()?;
+        let shstrtab = unsafe {
+            transmute::<[u8;size_of::<Elf64_Shdr>()], Elf64_Shdr>(shbuf)
+        };
+
+        shstrtab_off = shstrtab.sh_offset;
+        println!("ELF shstrtab offset: {:#x}", shstrtab_off);
+
+        // Loop through sections
+        for i in 0..self.e_shnum {
+            file.read_exact_at(&mut shbuf, (self.e_shoff + (i * self.e_shentsize) as Elf64_Off) as u64).ok()?;
+            let shdr = unsafe {
+                transmute::<[u8;size_of::<Elf64_Shdr>()], Elf64_Shdr>(shbuf)
+            };
+
+            let mut section_name_buf : Vec<u8> = vec![];
+            let mut reader = BufReader::new(file);
+            reader.seek(SeekFrom::Start((shstrtab_off + shdr.sh_name as Elf64_Off) as u64));
+            reader.read_until(b'\x00', &mut section_name_buf);
+
+            let section_name = String::from_utf8_lossy(&section_name_buf).to_string();
+            if !callback(section_name, shdr.sh_offset as u64, shdr.sh_entsize as u64, shdr.sh_size as u64) {
+                break;
+            }
+        }
+        return Some(());
     }
 }
 
