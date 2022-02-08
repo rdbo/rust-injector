@@ -1,6 +1,8 @@
 use std::path::Path;
 use std::fs::{read_dir, File, read_link};
 use std::io::{BufRead, BufReader};
+use regex::Regex;
+use nix::sys::mman::ProtFlags;
 
 pub fn enum_pids<F>(mut callback : F) -> Option<()> where F : FnMut(i32) -> bool {
     let procfs = Path::new("/proc");
@@ -36,7 +38,36 @@ pub fn enum_pids<F>(mut callback : F) -> Option<()> where F : FnMut(i32) -> bool
 }
 
 pub fn enum_maps<F>(pid : i32, mut callback : F) -> Option<()>
-where F : FnMut(usize, usize, i32, String) -> bool {
+where F : FnMut(usize, usize, ProtFlags, String) -> bool {
+    let maps_file = File::open(format!("/proc/{}/maps", pid)).ok()?;
+    let reader = BufReader::new(maps_file);
+    let re = Regex::new(r"([0-9a-f]+)-([0-9a-f]+)\s+([rwxp\-]+).*\s+(/.*)").ok()?;
+
+    for line in reader.lines() {
+        let line = line.ok()?;
+        let caps = match re.captures(line.as_str()) {
+            Some(c) => c,
+            _ => continue
+        };
+        
+        let base_addr = usize::from_str_radix(&caps[1], 16).unwrap();
+        let end_addr = usize::from_str_radix(&caps[2], 16).unwrap();
+        let mut flags = ProtFlags::empty();
+        for c in String::from(&caps[3]).chars() {
+            flags = match c {
+                'r' => flags | ProtFlags::PROT_READ,
+                'w' => flags | ProtFlags::PROT_WRITE,
+                'x' => flags | ProtFlags::PROT_EXEC,
+                _ => continue
+            }
+        }
+        let path = String::from(&caps[4]);
+
+        if !callback(base_addr, end_addr, flags, path) {
+            break;
+        }
+    }
+
     return Some(());
 }
 

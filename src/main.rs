@@ -1,6 +1,7 @@
 use std::env;
 use std::path::Path;
 use std::fs::File;
+use nix::sys::mman::ProtFlags;
 
 mod proc;
 mod elf;
@@ -122,4 +123,9 @@ fn main() {
         lib_ehdr.get_class() == exe_ehdr.get_class(),
         "The ELF classes from the library and the process don't match. Make sure they are the same architecture!"
     );
+
+    proc::enum_maps(pid, |base : usize, end : usize, flags : ProtFlags, path : String| {
+        println!("Base: {}, End: {}, Flags: {:?}, Path: {}", base, end, flags, path);
+        return true;
+    });
 }
