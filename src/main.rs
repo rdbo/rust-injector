@@ -124,7 +124,7 @@ fn main() {
         "The ELF classes from the library and the process don't match. Make sure they are the same architecture!"
     );
 
-    match injector::inject(pid, &libpath) {
+    match injector::inject(pid, exe_ehdr.get_class(), &libpath) {
         Ok(_) => println!("Injected successfully!"),
         Err(e) => panic!("Unable to inject: {}", e)
     }
