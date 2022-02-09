@@ -25,7 +25,7 @@ cargo build --release
 ## Notes
 This is my first Rust project, so don't expect best quality code  
 Everything was written from scratch in pure Rust  
-Requires the `nix` package
+Requires the `nix` and `regex` packages
 
 ## PoC
 Terminal Logs:
