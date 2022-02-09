@@ -63,12 +63,12 @@ fn main() {
         if name != "" {
             pid = match proc::pid_from_name(&name) {
                 Some(p) => p,
-                _ => panic!("Unable to get PID from name '{}'", name)
+                _ => panic!("Unable to get PID from name: {}", name)
             }
         } else {
             pid = match proc::pid_from_fname(&fname) {
                 Some(p) => p,
-                _ => panic!("Unable to get PID from filename '{}'", fname)
+                _ => panic!("Unable to get PID from filename: {}", fname)
             }
         }
     }

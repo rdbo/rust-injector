@@ -6,8 +6,8 @@ use nix::sys::mman::ProtFlags;
 
 #[derive(Debug)]
 pub struct MapsEntry {
-    pub base : usize,
-    pub end : usize,
+    pub base : u64,
+    pub end : u64,
     pub flags : ProtFlags,
     pub path : String
 }
@@ -58,8 +58,8 @@ where F : FnMut(MapsEntry) -> bool {
             _ => continue
         };
         
-        let base_addr = usize::from_str_radix(&caps[1], 16).unwrap();
-        let end_addr = usize::from_str_radix(&caps[2], 16).unwrap();
+        let base_addr = u64::from_str_radix(&caps[1], 16).unwrap();
+        let end_addr = u64::from_str_radix(&caps[2], 16).unwrap();
         let mut flags = ProtFlags::empty();
         for c in String::from(&caps[3]).chars() {
             flags = match c {
