@@ -4,6 +4,20 @@ Shared library injector for Linux written in Rust
 ## License
 Read the file `LICENSE`
 
+## Usage
+Requires root access
+```
+[ Rust Injector ] by rdbo
+====================
+usage: ./rust-injector [-n NAME][-f FILENAME][-p PID] SHARED_LIB
+```
+
+## Building
+The output binary will be located at: `target/release/rust-injector`
+```
+cargo build --release
+```
+
 ## Status
 - x86_64: Working
 - x86_32: Not fully working

@@ -15,7 +15,7 @@ macro_rules! separator {
 }
 
 fn help() {
-    println!("usage: ./injector [-n NAME][-p PID] SHARED_LIB");
+    println!("usage: ./rust-injector [-n NAME][-f FILENAME][-p PID] SHARED_LIB");
 }
 
 fn main() {
