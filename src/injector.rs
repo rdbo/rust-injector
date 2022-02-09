@@ -1,6 +1,7 @@
 use regex::Regex;
 use crate::proc::{enum_maps, MapsEntry};
 use crate::elf::enum_symbols;
+use crate::elf::elfdefs::{ElfW_Ehdr, ElfW, Elf32_Ehdr, Elf64_Ehdr, ET_EXEC};
 use std::fs::File;
 
 macro_rules! separator {
@@ -25,14 +26,28 @@ fn find_libc(pid : i32) -> Option<MapsEntry> {
     return libc_entry;
 }
 
-fn find_dlopen(libc_entry : &MapsEntry) -> Result<usize, String> {
+fn find_dlopen(libc_entry : &MapsEntry) -> Result<u64, String> {
     let libc_file = match File::open(&libc_entry.path) {
         Ok(f) => f,
         Err(e) => return Err(format!("Could not open libc file: {}", e))
     };
     
-    let result = enum_symbols(&libc_file, |symbol : String, value : usize| {
-        println!("{} : {:#x}", symbol, value);
+    let mut dlopen_addr : Option<u64> = None;
+    let result = enum_symbols(&libc_file, |ehdr : &ElfW<Elf32_Ehdr, Elf64_Ehdr>, symbol : String, value : u64| -> bool {
+        let mut value = value;
+        if symbol != "__libc_dlopen_mode" {
+            return true;
+        }
+
+        println!("Libc dlopen info: ");
+        println!("\tSymbol: {}", symbol);
+        if ehdr.get_type() != ET_EXEC {
+            println!("\tAddress (rel): {:#x}", value);
+            value += libc_entry.base as u64; // calculate absolute address
+        }
+        println!("\tAddress: {:#x}", value);
+        dlopen_addr = Some(value);
+        return false;
     });
 
     match result {
@@ -40,7 +55,10 @@ fn find_dlopen(libc_entry : &MapsEntry) -> Result<usize, String> {
         Ok(_) => {  }
     }
 
-    return Ok(0);
+    return match dlopen_addr {
+        Some(addr) => Ok(addr),
+        None => Err(format!("The symbol __libc_dlopen_mode was not found in the target libc"))
+    };
 }
 
 pub fn inject(pid : i32, libpath : &String) -> Result<(), String> {
@@ -56,6 +74,7 @@ pub fn inject(pid : i32, libpath : &String) -> Result<(), String> {
         Ok(addr) => addr,
         Err(e) => return Err(format!("Could not find dlopen in libc: {}", e))
     };
+    separator!();
 
     return Ok(());
 }

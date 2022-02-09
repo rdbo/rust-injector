@@ -87,34 +87,63 @@ pub const ELFCLASS32 : u8 = 1;
 pub const ELFCLASS64 : u8 = 2;
 pub const ELFCLASSNUM : u8 = 3;
 
+pub const ET_NONE : u64 = 0;
+pub const ET_REL : u64 = 1;
+pub const ET_EXEC : u64 = 2;
+pub const ET_DYN : u64 = 3;
+pub const ET_CORE : u64 = 4;
+pub const ET_NUM : u64 = 5;
+
 #[derive(Debug)]
 #[repr(C)]
-struct Elf32_Shdr {
-    sh_name : Elf32_Word,
-    sh_type : Elf32_Word,
-    sh_flags : Elf32_Word,
-    sh_addr : Elf32_Addr,
-    sh_offset : Elf32_Off,
-    sh_size : Elf32_Word,
-    sh_link : Elf32_Word,
-    sh_info : Elf32_Word,
-    sh_addralign : Elf32_Word,
-    sh_entsize : Elf32_Word
+pub struct Elf32_Shdr {
+    pub sh_name : Elf32_Word,
+    pub sh_type : Elf32_Word,
+    pub sh_flags : Elf32_Word,
+    pub sh_addr : Elf32_Addr,
+    pub sh_offset : Elf32_Off,
+    pub sh_size : Elf32_Word,
+    pub sh_link : Elf32_Word,
+    pub sh_info : Elf32_Word,
+    pub sh_addralign : Elf32_Word,
+    pub sh_entsize : Elf32_Word
 }
 
 #[derive(Debug)]
 #[repr(C)]
-struct Elf64_Shdr {
-    sh_name : Elf64_Word,
-    sh_type : Elf64_Word,
-    sh_flags : Elf64_Xword,
-    sh_addr : Elf64_Addr,
-    sh_offset : Elf64_Off,
-    sh_size : Elf64_Xword,
-    sh_link : Elf64_Word,
-    sh_info : Elf64_Word,
-    sh_addralign : Elf64_Xword,
-    sh_entsize : Elf64_Xword,
+pub struct Elf64_Shdr {
+    pub sh_name : Elf64_Word,
+    pub sh_type : Elf64_Word,
+    pub sh_flags : Elf64_Xword,
+    pub sh_addr : Elf64_Addr,
+    pub sh_offset : Elf64_Off,
+    pub sh_size : Elf64_Xword,
+    pub sh_link : Elf64_Word,
+    pub sh_info : Elf64_Word,
+    pub sh_addralign : Elf64_Xword,
+    pub sh_entsize : Elf64_Xword,
+}
+
+#[derive(Debug)]
+#[repr(C)]
+pub struct Elf32_Sym {
+    pub st_name : Elf32_Word,
+    pub st_value : Elf32_Addr,
+    pub st_size : Elf32_Word,
+    pub st_info : u8,
+    pub st_other : u8,
+    pub st_shndx : Elf32_Section,
+}
+
+#[derive(Debug)]
+#[repr(C)]
+pub struct Elf64_Sym {
+    pub st_name : Elf64_Word,
+    pub st_info : u8,
+    pub st_other : u8,
+    pub st_shndx : Elf64_Section,
+    pub st_value : Elf64_Addr,
+    pub st_size : Elf64_Xword
 }
 
 /********************/
@@ -203,6 +232,7 @@ use std::io::{Seek, SeekFrom, BufRead, BufReader};
 pub trait ElfW_Ehdr {
     fn get_class(&self) -> u8;
     fn get_magic(&self) -> Vec<u8>;
+    fn get_type(&self) -> u64;
     fn enum_sections<T>(&self, file : &File, callback : T) -> Option<()> where T : FnMut(String, u64, u64, u64) -> bool;
 }
 
@@ -215,6 +245,10 @@ impl ElfW_Ehdr for Elf32_Ehdr {
         return Vec::from(&self.e_ident[0..SELFMAG]);
     }
 
+    fn get_type(&self) -> u64 {
+        return self.e_type as u64;
+    }
+
     fn enum_sections<T>(&self, file : &File, mut callback : T) -> Option<()> where T : FnMut(String, u64, u64, u64) -> bool {
         // Get shstrtab
         let mut shstrtab_off = self.e_shoff + (self.e_shstrndx * self.e_shentsize) as Elf32_Off;
@@ -225,7 +259,6 @@ impl ElfW_Ehdr for Elf32_Ehdr {
         };
 
         shstrtab_off = shstrtab.sh_offset;
-        println!("ELF shstrtab offset: {:#x}", shstrtab_off);
 
         // Loop through sections
         for i in 0..self.e_shnum {
@@ -238,6 +271,7 @@ impl ElfW_Ehdr for Elf32_Ehdr {
             let mut reader = BufReader::new(file);
             reader.seek(SeekFrom::Start((shstrtab_off + shdr.sh_name) as u64));
             reader.read_until(b'\x00', &mut section_name_buf);
+            section_name_buf.pop(); // remove null terminator
 
             let section_name = String::from_utf8_lossy(&section_name_buf).to_string();
             if !callback(section_name, shdr.sh_offset as u64, shdr.sh_entsize as u64, shdr.sh_size as u64) {
@@ -257,6 +291,10 @@ impl ElfW_Ehdr for Elf64_Ehdr {
         return Vec::from(&self.e_ident[0..SELFMAG]);
     }
 
+    fn get_type(&self) -> u64 {
+        return self.e_type as u64;
+    }
+
     fn enum_sections<T>(&self, file : &File, mut callback : T) -> Option<()> where T : FnMut(String, u64, u64, u64) -> bool {
         // Get shstrtab
         let mut shstrtab_off = self.e_shoff + (self.e_shstrndx * self.e_shentsize) as Elf64_Off;
@@ -267,7 +305,6 @@ impl ElfW_Ehdr for Elf64_Ehdr {
         };
 
         shstrtab_off = shstrtab.sh_offset;
-        println!("ELF shstrtab offset: {:#x}", shstrtab_off);
 
         // Loop through sections
         for i in 0..self.e_shnum {
@@ -280,6 +317,7 @@ impl ElfW_Ehdr for Elf64_Ehdr {
             let mut reader = BufReader::new(file);
             reader.seek(SeekFrom::Start((shstrtab_off + shdr.sh_name as Elf64_Off) as u64));
             reader.read_until(b'\x00', &mut section_name_buf);
+            section_name_buf.pop(); // remove null terminator
 
             let section_name = String::from_utf8_lossy(&section_name_buf).to_string();
             if !callback(section_name, shdr.sh_offset as u64, shdr.sh_entsize as u64, shdr.sh_size as u64) {
@@ -307,6 +345,10 @@ where A : ElfW_Ehdr, B : ElfW_Ehdr {
 
     fn get_magic(&self) -> Vec<u8> {
         return elfw!(e.get_magic());
+    }
+
+    fn get_type(&self) -> u64 {
+        return elfw!(e.get_type());
     }
 
     fn enum_sections<T>(&self, file : &File, mut callback : T) -> Option<()> where T : FnMut(String, u64, u64, u64) -> bool {
